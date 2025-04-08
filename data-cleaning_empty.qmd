@@ -1,6 +1,8 @@
 ---
 title: "Data Cleaning"
 format: html
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -50,7 +52,8 @@ Let's focus on the non-numeric values as a starting point:
 
 ```{r}
 snowsurvey_csv %>%
-
+  count(Snow_cover) |> 
+  filter(is.na(as.numeric(Snow_cover)))
 ```
 
 ### Data cleaning
@@ -68,23 +71,28 @@ snowsurvey_csv %>%
 Interestingly, when there is a "dot" for snow cover, it is also the case for all the other covers. Let's replace those with NA since there is no supplemental information in the provided metadata about the use of dots
 
 ```{r}
-snowsurvey_fixed <- 
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover = ifelse(Snow_cover == ".", NA, Snow_cover))
 ```
 
 #### `-` values
 
-Is he problem is similar with "-"?
+Is the problem is similar with "-"?
 
 ```{r}
-snowsurvey_csv 
+snowsurvey_csv %>%
+  filter(Snow_cover == "-") %>%
+  View()
 ```
 
 
 let's set it to NA:
 
 ```{r}
-snowsurvey_fixed <- 
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover = ifelse(Snow_cover == "-", NA, Snow_cover))
 ```
+
 
 #### `n/a` values
 
@@ -92,14 +100,16 @@ snowsurvey_fixed <-
 
 ```{r}
 snowsurvey_csv %>%
-  
+  filter(Snow_cover == "n/a") %>%
+  View()
 ```
 
 
 Same pattern, let's substitute with NA:
 
 ```{r}
-snowsurvey_fixed <- 
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover = ifelse(Snow_cover == "n/a", NA, Snow_cover))
  
 ```
 
@@ -109,12 +119,14 @@ What about "unk"? It is probably an abbreviation for unknown:
 
 ```{r}
 snowsurvey_csv %>%
-  
+   filter(Snow_cover == "unk") %>%
+  View()
 ```
 
 
 ```{r}
-snowsurvey_fixed <- 
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover = ifelse(Snow_cover == "unk", NA, Snow_cover))
 ```
 
 #### `<1` values
@@ -122,11 +134,15 @@ snowsurvey_fixed <-
 Finally What should we replace"<1" with?
 
 ```{r}
-
+snowsurvey_csv %>%
+   filter(Snow_cover == "<1") %>%
+  View()
+# essentially zero since not included in total land cover
 ```
 
 ```{r}
-
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover = ifelse(Snow_cover == "<1", 0, Snow_cover))
 ```
 
 
@@ -143,10 +159,11 @@ snowsurvey_fixed %>%
 Ok, we can do the transformation:
 
 ```{r}
-snowsurvey_fixed <- 
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover = as.numeric(Snow_cover))
 ```
 
-Yeah we have finally a numeric column 🎉. 
+Yay we have finally a numeric column 🎉. 
 
 
 ### Further cleaning
