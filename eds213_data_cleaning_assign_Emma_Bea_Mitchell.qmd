@@ -1,0 +1,198 @@
+---
+title: "data cleaning assignment week 2"
+author: "Emma Bea Mitchell"
+format: html
+execute: 
+  eval: true
+  echo: true
+  warning: false
+  message: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| message: false
+#| output: false
+
+#read in libraries
+library(tidyverse) 
+library(here) # to load in data
+library(janitor) # to clean names
+```
+
+```{r}
+#| output: false
+#| quiet: true
+#| echo: false
+
+# Import snow survey processed data (from class)
+snowsurvey <- read_csv(here("data", "processed", "snow_cover.csv"))
+```
+
+```{r}
+# quick look at our data
+glimpse(snowsurvey)
+```
+
+```{r}
+# quickly check if there's non-numeric values at the top of list
+snowsurvey %>%
+  count(Water_cover)
+```
+
+```{r}
+# it looks like there's characters and/or symbols in this column - even though it should be numeric
+snowsurvey %>%
+  count(Water_cover) |> 
+  filter(is.na(as.numeric(Water_cover)))
+```
+
+There are a lot of values that aren't numeric in this column. The reason we run this filter is because when changing the column to numeric, r will coerce the non-numeric values into NAs. This way we can look at what we're dealing with. 
+(Luckily, the previous snow_cover cleaning fixed the . and - for all columns ending in _cover, so we don't need to worry about that)
+
+```{r}
+# it's pretty safe to assume that the n/a is the same as NA
+snowsurvey %>%
+  filter(Water_cover == "n/a") %>%
+  View()
+```
+
+```{r}
+# change n/a to NAs
+snowsurvey_fixed <- snowsurvey %>% 
+  mutate(Water_cover = ifelse(Water_cover == "n/a", NA, Water_cover))
+```
+
+```{r}
+# it's also pretty safe to assume that 'unk' stands for 'unknown', so we can also make those NAs
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Water_cover = ifelse(Water_cover == "unk", NA, Water_cover))
+```
+
+This took care of all of our non-numeric values. Everything else in that column is a number
+
+```{r}
+# test just in case
+snowsurvey_fixed %>% 
+  count(Water_cover) %>%
+  filter(is.na(as.numeric(Water_cover)))
+```
+
+looks great! 
+Let's move on to actually making the column numeric
+
+```{r}
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Water_cover = as.numeric(Water_cover))
+```
+
+From the metadata, we also know that these numbers are a percentage and should be between 0 and 100. Let's check that that is true
+
+```{r}
+snowsurvey_fixed %>% 
+  filter(Water_cover > 100 | Water_cover < 0) 
+```
+
+We only have one value that is incorrect. This should be an easy fix. Because I know I'm going to working with land_cover later, I will also change the value in that column to NA since I don't want to make any assumptions about what the observer was trying to write here
+
+```{r}
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Water_cover = ifelse(Water_cover > 100, NA, Water_cover),
+         Land_cover = ifelse(Land_cover < 0, NA, Land_cover))
+```
+
+```{r}
+# check that it worked
+snowsurvey_fixed %>% 
+  filter(Water_cover > 100 | Water_cover < 0) # we get nothing, which is exactly what we want!
+```
+
+Now let's do the same thing for Land_cover
+
+```{r}
+# quickly check if there's non-numeric values at the top of list
+snowsurvey_fixed %>%
+  count(Land_cover)
+```
+
+I'm not seeing any non-numeric values at first glance, but there might be some characters hidden, so let's check just in case
+
+```{r}
+snowsurvey_fixed %>%
+  count(Land_cover) |> 
+  filter(is.na(as.numeric(Land_cover)))
+```
+
+Since I did the exact same thing above, I'm going to change everything in one code chunk. I'll also make it numeric.
+```{r}
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Land_cover = ifelse(Land_cover == "unk", NA, Land_cover),
+         Land_cover = ifelse(Land_cover == "n/a", NA, Land_cover),
+         Land_cover = as.numeric(Land_cover))
+```
+
+I know that I already fixed the negative numbers, but let's just check that there aren't any more numbers that don't belong
+
+```{r}
+snowsurvey_fixed %>% 
+  filter(Land_cover > 100) # perfect we get nothing, exactly what we want
+```
+
+Yay, we're done with our basic data cleaning for both Water_cover and Land_cover
+
+Now let's make sure that the Total_cover column is correct. From the metadata we know that it should always be 100, and that the snow, water, and land cover should equal 100. Let's first make sure the column is actually numeric.
+
+```{r}
+# check class of column
+class(snowsurvey_fixed$Total_cover)
+```
+
+It's already numeric! Let's move on to making sure that land cover always equals 100
+
+```{r}
+snowsurvey_fixed |> 
+  filter(Total_cover != 100)
+```
+
+hmmm there's a lot that don't equal 100
+If there's some total covers that aren't 100 but the land, water, and snow covers all total to 100, I'll change the value of the total_covers to 100
+
+```{r}
+snowsurvey_fixed <- snowsurvey_fixed |> 
+  mutate(Total_cover = ifelse(Water_cover + Land_cover + Snow_cover == 100, 100, Total_cover))
+```
+ 
+```{r}
+# let's check again
+snowsurvey_fixed |> 
+  filter(Total_cover != 100)
+```
+
+I'm going to make the executive decision that we can change the entire Snow, Water, Land, and Total cover to NA if the Total cover isn't 100. If I had more information, I could definitely go back and fix the numbers, but we don't have that here. 
+
+```{r}
+# making a for loop to change NAs quickly
+
+covers <- c("Land_cover", "Snow_cover", "Water_cover", "Total_cover")
+
+for (i in covers){
+  snowsurvey_fixed <- snowsurvey_fixed |> 
+    mutate(!!i := ifelse(Total_cover == 100, .data[[i]], NA))
+}
+
+```
+
+Let's make sure that worked
+
+```{r}
+snowsurvey_fixed |> 
+  filter(Total_cover != 100) # nothing means it worked!
+```
+
+Our data frame looks great! Let's make it a csv now and put it in the processed data folder
+
+```{r}
+write_csv(snowsurvey_fixed, file.path(datadir_processed, "all_cover_fixed_EMMA_BEA_MITCHELL.csv"))
+```
+

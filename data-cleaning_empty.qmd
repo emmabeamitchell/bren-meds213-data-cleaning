@@ -63,7 +63,7 @@ Ok, we found our problematic values that are not numeric. There are a non-neglig
 #### `.` values
 
 ```{r}
-snowsurvey_csv %>%
+snowsurvey %>%
   filter(Snow_cover == ".") %>%
   View()
 ```
@@ -171,20 +171,22 @@ Yay we have finally a numeric column 🎉.
 We are dealing with percentages, so we should verify that all the values are between 0 and 100:
 
 ```{r}
- snowsurvey_fixed 
+ snowsurvey_fixed |> 
+  filter(Snow_cover < 0 | Snow_cover > 100)
 ```
 
 We have two values above 100, with an interesting 470%! ☃️ We should probably set those values to NAs:
 
 ```{r}
-snowsurvey_fixed <- 
+snowsurvey_fixed <- snowsurvey_csv |> 
+  mutate(Snow_cover == ifelse(Snow_cover > 100, NA, Snow_cover))
 ```
 
 Let's check for negative values:
 
 ```{r}
  snowsurvey_fixed %>%
-  
+  filter(Snow_cover < 0)
 ```
 
 No negative value detected ✅
@@ -230,7 +232,13 @@ This data model is not convenient for a database, we will have to switch to a lo
 ### Data cleaning
 
 ```{r}
-species_long <- 
+species_long <- species_csv |> 
+  pivot_longer(
+    cols = !c(Year, Site, Date, Jdate, Num_observers, All_obs_reported, Observer_hours),
+    names_to = "species",
+    values_to = "species_count",
+    values_transform = list(species_count = as.character)
+  )
 ```
 
 
@@ -238,7 +246,7 @@ We want to focus on the presence and absence of species and not the count. Let's
 
 ```{r}
 species_presence <- species_long %>%
-  
+  mutate(species_presence = ifelse(species_count == "0", 0, 1))
 ```
 
 We can remove some columns: "Num_observers", "All_obs_reported", "Observer_hours" are here to help to compute the effort of observation but since we just want presence and absence, we do not need it. We can also remove all the zeros values to reduce the size of our data set:
